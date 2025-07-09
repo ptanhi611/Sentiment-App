@@ -13,9 +13,9 @@ from dataset import tokenizer, encode, padding  # using your dataset functions
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 VOCAB_CONFIG_PATH = os.path.join(BASE_DIR, "vocab_config.json")
 
-MODEL_PATH = os.path.join(BASE_DIR, "model params", "Model_params", "model_BiLSTM_Bahdanau.pt")
-EMBED_PATH = os.path.join(BASE_DIR, "model params", "Embedding Layer Params", "embed_BiLSTM_Bahdanau.pt")
-ATTEN_PATH = os.path.join(BASE_DIR, "model params", "Attention param", "attention_BiLSTm_Bahdanau.pt")
+MODEL_PATH = os.path.join(BASE_DIR,  "model_BiLSTM_Bahdanau.pt")
+EMBED_PATH = os.path.join(BASE_DIR,  "embed_BiLSTM_Bahdanau.pt")
+ATTEN_PATH = os.path.join(BASE_DIR, "attention_BiLSTm_Bahdanau.pt")
 
 # === Load vocab & max_len ===
 with open(VOCAB_CONFIG_PATH, "r") as f:
