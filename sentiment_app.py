@@ -5,17 +5,17 @@ import os
 import json
 import numpy as np
 
-from models import Vanilla_lstm # class name will remain lowercase if defined like that
-from attention import Luong_Gen_Attention
+from models import Bidirectional_lstm
+from attention import Bahdanau_Attention
 from dataset import tokenizer, encode, padding  # using your dataset functions
 
 # === Paths ===
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 VOCAB_CONFIG_PATH = os.path.join(BASE_DIR, "vocab_config.json")
 
-MODEL_PATH = os.path.join(BASE_DIR, "model params", "Model_params", "model_Vanilla_LSTM_Luong_General.pt")
-EMBED_PATH = os.path.join(BASE_DIR, "model params", "Embedding Layer Params", "embed_Vanilla_LSTM_Luong_General.pt")
-ATTEN_PATH = os.path.join(BASE_DIR, "model params", "Attention param", "attention_Vanilla_LSTM_Luong_General.pt")
+MODEL_PATH = os.path.join(BASE_DIR, "model params", "Model_params", "model_BiLSTM_Bahdanau.pt")
+EMBED_PATH = os.path.join(BASE_DIR, "model params", "Embedding Layer Params", "embed_BiLSTM_Bahdanau.pt")
+ATTEN_PATH = os.path.join(BASE_DIR, "model params", "Attention param", "attention_BiLSTm_Bahdanau.pt")
 
 # === Load vocab & max_len ===
 with open(VOCAB_CONFIG_PATH, "r") as f:
@@ -32,18 +32,18 @@ embed_dim = 100
 model_hidden_size = 128
 attention_hidden_size = 64  
 output_size = 2
-bidir = False
+bidir = True
 
 # === Load model components ===
 embedding_layer = torch.nn.Embedding(num_embeddings=len(vocab) + 1, embedding_dim=embed_dim, padding_idx=0).to(device)
 embedding_layer.load_state_dict(torch.load(EMBED_PATH, map_location=device))
 embedding_layer.eval()
 
-model = Vanilla_lstm(embed_dim, model_hidden_size, output_size).to(device)
+model = Bidirectional_lstm(embed_dim, model_hidden_size, output_size).to(device)
 model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
 model.eval()
 
-attention = Luong_Gen_Attention(model_hidden_size *2 if bidir else model_hidden_size, attention_hidden_size).to(device)
+attention = Bahdanau_Attention(model_hidden_size *2 if bidir else model_hidden_size, attention_hidden_size).to(device)
 attention.load_state_dict(torch.load(ATTEN_PATH, map_location=device))
 attention.eval()
 
