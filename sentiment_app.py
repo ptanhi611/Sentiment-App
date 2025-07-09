@@ -15,7 +15,7 @@ VOCAB_CONFIG_PATH = os.path.join(BASE_DIR, "vocab_config.json")
 
 MODEL_PATH = os.path.join(BASE_DIR,  "model_BiLSTM_Bahdanau.pt")
 EMBED_PATH = os.path.join(BASE_DIR,  "embed_BiLSTM_Bahdanau.pt")
-ATTEN_PATH = os.path.join(BASE_DIR, "attention_BiLSTm_Bahdanau.pt")
+ATTEN_PATH = os.path.join(BASE_DIR, "attention_BiLSTM_Bahdanau.pt")
 
 # === Load vocab & max_len ===
 with open(VOCAB_CONFIG_PATH, "r") as f:
