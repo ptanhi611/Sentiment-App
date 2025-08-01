@@ -5,14 +5,17 @@ import torch.nn.functional as F
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, confusion_matrix
 import os
 import json
+from transformers import BertModel
 
-def train_and_evaluate(model, attention, train_loader, test_loader, vocab, args):
+def train_and_evaluate(model, attention, train_loader, test_loader, args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     if attention:
         attention = attention.to(device)
 
-    embedding_layer = torch.nn.Embedding(num_embeddings=len(vocab), embedding_dim=100, padding_idx=0).to(device)
+
+    bert = BertModel.from_pretrained("bert-base-uncased")
+    embedding_layer = bert.embeddings.word_embeddings.to(device)
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(list(model.parameters()) + list(embedding_layer.parameters()) +
                                  (list(attention.parameters()) if attention else []), lr=args.lr)
@@ -20,7 +23,7 @@ def train_and_evaluate(model, attention, train_loader, test_loader, vocab, args)
     for epoch in range(args.epochs):
         model.train()
         total_loss = 0
-        for X_batch, y_batch in train_loader:
+        for X_batch, y_batch, _ in train_loader:
             X_batch, y_batch = X_batch.to(device), y_batch.to(device)
 
             X_embedded = embedding_layer(X_batch)
@@ -40,6 +43,16 @@ def train_and_evaluate(model, attention, train_loader, test_loader, vocab, args)
 
         print(f"[Epoch {epoch+1}] Training Loss: {total_loss / len(train_loader):.4f}")
 
+
+    save_path = os.path.join(args.output_dir if hasattr(args, "output_dir") else ".", "checkpoint.pth")
+    torch.save({
+        "model_state_dict": model.state_dict(),
+        "attention_state_dict": attention.state_dict() if attention else None,
+        "embedding_state_dict": embedding_layer.state_dict(),
+        "args": vars(args)
+    }, save_path)
+    print(f"✅ Model checkpoint saved at: {save_path}")
+
     return evaluate_model(model, attention, test_loader, embedding_layer, args)
 
 def evaluate_model(model, attention, test_loader, embedding_layer, args):
@@ -50,7 +63,7 @@ def evaluate_model(model, attention, test_loader, embedding_layer, args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     with torch.no_grad():
-        for X_batch, y_batch in test_loader:
+        for X_batch, y_batch,_ in test_loader:
             X_batch, y_batch = X_batch.to(device), y_batch.to(device)
             X_embedded = embedding_layer(X_batch)
 

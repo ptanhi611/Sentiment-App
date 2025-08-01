@@ -7,7 +7,7 @@ import numpy as np
 
 from models import Bidirectional_lstm
 from attention import Bahdanau_Attention
-from dataset import tokenizer, encode, padding  # using your dataset functions
+
 
 # === Paths ===
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -28,7 +28,7 @@ max_len = config["max_len"]
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # === Model config ===
-embed_dim = 100
+embed_dim = 768
 model_hidden_size = 128
 attention_hidden_size = 64  
 output_size = 2

@@ -6,20 +6,9 @@ import pandas as pd
 import re
 from datasets import load_dataset
 import json
+from transformers import BertTokenizer
 
-# -------------------------
-# Tokenizer and Preprocessing
-# -------------------------
 
-def tokenizer(text):
-    text = re.sub(r"[^a-zA-Z0-9\s]", "", text)
-    return text.lower().split()
-
-def encode(tokens, vocab):
-    return [vocab.get(token, 0) for token in tokens]  # 0 for unknown
-
-def padding(tokens, max_len):
-    return tokens + [0] * (max_len - len(tokens))
 
 
 # -------------------------
@@ -27,62 +16,64 @@ def padding(tokens, max_len):
 # -------------------------
 
 class IMDBDataset(Dataset):
-    def __init__(self, X, Y):
+    def __init__(self, X, Y,attention_masks):
         super().__init__()
         self.X = torch.tensor(X, dtype=torch.long)
         self.Y = torch.tensor(Y, dtype=torch.long)
-
+        self.A = torch.tensor(attention_masks, dtype= torch.long)
+        
     def __len__(self):
         return len(self.X)
 
     def __getitem__(self, index):
-        return self.X[index], self.Y[index]
-
+        return self.X[index], self.Y[index], self.A[index]
 
 # -------------------------
 # Full Data Processing Pipeline
 # -------------------------
 
 def load_imdb_data(batch_size=32, max_samples=25000):
+    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     data = load_dataset("imdb")
 
     # Prepare Training Data
     df_train = pd.DataFrame(data["train"]).sample(n=max_samples, random_state=42).reset_index(drop=True)
-    df_train["tokenized"] = df_train["text"].apply(tokenizer)
-    
-    # Build vocab
-    all_tokens = [tok for row in df_train["tokenized"] for tok in row]
-    
-    vocab = {word: i+1 for i, word in enumerate(set(all_tokens))}  # NO <PAD>, starts from 1
 
-# Compute max length
-    max_len = max([len(row) for row in df_train["tokenized"]])
+    # Auto compute max length from tokenized data
+    max_len = df_train["text"].apply(lambda x: len(tokenizer.tokenize(x))).max()
+    print(f"Auto-detected max_len: {max_len}")
 
-    print("creating json file")
-    with open("vocab_config.json", "w") as f:
-        json.dump({"vocab": vocab, "max_len": max_len}, f)
+    # Tokenize the train data
+    encoded_train = tokenizer(list(df_train["text"]),
+                              padding="max_length",
+                              truncation=True,
+                              max_length=max_len,
+                              return_tensors="pt")
 
+    X_train = encoded_train["input_ids"]
+    Y_train = torch.tensor(df_train["label"].tolist())
+    attention_masks_train = encoded_train["attention_mask"]
 
-    # df_train["encoded"] = df_train["tokenized"].apply(lambda x: encode(x, vocab))
-    # df_train["padded"] = df_train["encoded"].apply(lambda x: padding(x, max_len))
+    train_loader = DataLoader(IMDBDataset(X_train, Y_train, attention_masks_train),
+                              batch_size=batch_size, shuffle=True)
 
-    # X_train = df_train["padded"].tolist()
-    # Y_train = df_train["label"].tolist()
+    # Prepare Test Data
+    df_test = pd.DataFrame(data["test"]).sample(n=max_samples, random_state=42).reset_index(drop=True)
 
-    # train_loader = DataLoader(IMDBDataset(X_train, Y_train), batch_size=batch_size, shuffle=True)
+    encoded_test = tokenizer(list(df_test["text"]),
+                             padding="max_length",
+                             truncation=True,
+                             max_length=max_len,
+                             return_tensors="pt")
 
-    # # Prepare Test Data
-    # df_test = pd.DataFrame(data["test"]).sample(n=max_samples, random_state=42).reset_index(drop=True)
-    # df_test["tokenized"] = df_test["text"].apply(tokenizer)
-    # df_test["encoded"] = df_test["tokenized"].apply(lambda x: encode(x, vocab))
-    # df_test["padded"] = df_test["encoded"].apply(lambda x: padding(x, max_len))
+    X_test = encoded_test["input_ids"]
+    Y_test = torch.tensor(df_test["label"].tolist())
+    attention_masks_test = encoded_test["attention_mask"]
 
-    # X_test = df_test["padded"].tolist()
-    # Y_test = df_test["label"].tolist()
+    test_loader = DataLoader(IMDBDataset(X_test, Y_test, attention_masks_test),
+                             batch_size=batch_size, shuffle=False)
 
-    # test_loader = DataLoader(IMDBDataset(X_test, Y_test), batch_size=batch_size, shuffle=False)
-
-    # return train_loader, test_loader, vocab, max_len
+    return train_loader, test_loader, max_len
 
 
 if __name__ == "__main__":

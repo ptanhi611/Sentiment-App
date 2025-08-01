@@ -3,3 +3,5 @@ datasets
 scikit-learn
 matplotlib
 pandas
+streamlit
+

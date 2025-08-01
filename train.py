@@ -22,9 +22,9 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print(f"\n Loading IMDB Dataset...")
-    train_loader, test_loader, vocab, max_len = load_imdb_data(batch_size=args.batch_size)
+    train_loader, test_loader, max_len = load_imdb_data(batch_size=args.batch_size)
 
-    embed_dim = 100
+    embed_dim = 768
     hidden_size = 128
     bidirectional = args.model in ['BiRNN', 'BiLSTM']
     model_hidden_size = hidden_size * 2 if bidirectional else hidden_size
@@ -43,7 +43,7 @@ def main():
         attention = None
 
     print(f"\n🚀 Training Model: {args.model} | Attention: {args.attention}\n")
-    results = train_and_evaluate(model, attention, train_loader, test_loader, vocab, args)
+    results = train_and_evaluate(model, attention, train_loader, test_loader, args)
 
     print("\n📊 Final Evaluation Metrics:\n")
     for key, value in results.items():
