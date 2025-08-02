@@ -11,6 +11,13 @@ from attention import Bahdanau_Attention
 # === Device setup ===
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# === Hardcoded model config ===
+EMBED_DIM = 768              # BERT base hidden size
+HIDDEN_DIM = 128             # Your BiLSTM hidden dim
+ATTN_HIDDEN_DIM = 64         # Attention internal size
+OUTPUT_DIM = 2               # 2-class classifier
+MAX_LEN = 128                # BERT max token length
+
 # === Load BERT ===
 bert_model_name = "bert-base-uncased"
 tokenizer = AutoTokenizer.from_pretrained(bert_model_name)
@@ -19,14 +26,13 @@ bert_model.eval()
 
 # === Load checkpoint ===
 checkpoint = torch.load("checkpoint.pth", map_location=device)
-args = checkpoint["args"]
 
-# === Re-initialize model & attention ===
-model = Bidirectional_lstm(embed_dim=768, hidden_dim=args["hidden_dim"], output_dim=args["output_dim"]).to(device)
+# === Recreate and load model & attention ===
+model = Bidirectional_lstm(embed_dim=EMBED_DIM, hidden_dim=HIDDEN_DIM, output_dim=OUTPUT_DIM).to(device)
 model.load_state_dict(checkpoint["model_state_dict"])
 model.eval()
 
-attention = Bahdanau_Attention(hidden_size=model.hidden_dim * 2, attention_hidden_size=args["attn_hidden_dim"]).to(device)
+attention = Bahdanau_Attention(hidden_size=2 * HIDDEN_DIM, attention_hidden_size=ATTN_HIDDEN_DIM).to(device)
 attention.load_state_dict(checkpoint["attention_state_dict"])
 attention.eval()
 
@@ -43,16 +49,16 @@ if st.button("Predict"):
         with torch.no_grad():
             # Tokenize and encode
             inputs = tokenizer(user_input, return_tensors="pt", padding="max_length", truncation=True,
-                               max_length=args["max_len"])
+                               max_length=MAX_LEN)
             input_ids = inputs["input_ids"].to(device)
             attention_mask = inputs["attention_mask"].to(device)
 
-            # Get BERT embeddings (not pooled output, we want per-token)
+            # Get BERT embeddings
             bert_outputs = bert_model(input_ids, attention_mask=attention_mask)
-            embeddings = bert_outputs.last_hidden_state  # shape: (1, seq_len, 768)
+            embeddings = bert_outputs.last_hidden_state  # shape: (1, MAX_LEN, 768)
 
             # BiLSTM forward
-            lstm_out, final_hidden = model(embeddings)  # lstm_out: (1, seq_len, 2*hidden)
+            lstm_out, final_hidden = model(embeddings)  # lstm_out: (1, MAX_LEN, 2*hidden)
 
             # Attention forward
             attn_scores, context = attention(lstm_out, final_hidden)  # context: (1, 2*hidden)
