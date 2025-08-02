@@ -1,85 +1,78 @@
 import streamlit as st
 import torch
 import torch.nn.functional as F
-import os
-import json
 import numpy as np
+from transformers import AutoTokenizer, AutoModel
+import os
 
 from models import Bidirectional_lstm
 from attention import Bahdanau_Attention
 
-
-# === Paths ===
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-VOCAB_CONFIG_PATH = os.path.join(BASE_DIR, "vocab_config.json")
-
-MODEL_PATH = os.path.join(BASE_DIR,  "model_BiLSTM_Bahdanau.pt")
-EMBED_PATH = os.path.join(BASE_DIR,  "embed_BiLSTM_Bahdanau.pt")
-ATTEN_PATH = os.path.join(BASE_DIR, "attention_BiLSTM_Bahdanau.pt")
-
-# === Load vocab & max_len ===
-with open(VOCAB_CONFIG_PATH, "r") as f:
-    config = json.load(f)
-
-vocab = config["vocab"]
-max_len = config["max_len"]
-
 # === Device setup ===
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# === Model config ===
-embed_dim = 768
-model_hidden_size = 128
-attention_hidden_size = 64  
-output_size = 2
-bidir = True
+# === Load BERT ===
+bert_model_name = "bert-base-uncased"
+tokenizer = AutoTokenizer.from_pretrained(bert_model_name)
+bert_model = AutoModel.from_pretrained(bert_model_name).to(device)
+bert_model.eval()
 
-# === Load model components ===
-embedding_layer = torch.nn.Embedding(num_embeddings=len(vocab) + 1, embedding_dim=embed_dim, padding_idx=0).to(device)
-embedding_layer.load_state_dict(torch.load(EMBED_PATH, map_location=device))
-embedding_layer.eval()
+# === Load checkpoint ===
+checkpoint = torch.load("checkpoint.pth", map_location=device)
+args = checkpoint["args"]
 
-model = Bidirectional_lstm(embed_dim, model_hidden_size, output_size).to(device)
-model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
+# === Re-initialize model & attention ===
+model = Bidirectional_lstm(embed_dim=768, hidden_dim=args["hidden_dim"], output_dim=args["output_dim"]).to(device)
+model.load_state_dict(checkpoint["model_state_dict"])
 model.eval()
 
-attention = Bahdanau_Attention(model_hidden_size *2 if bidir else model_hidden_size, attention_hidden_size).to(device)
-attention.load_state_dict(torch.load(ATTEN_PATH, map_location=device))
+attention = Bahdanau_Attention(hidden_size=model.hidden_dim * 2, attention_hidden_size=args["attn_hidden_dim"]).to(device)
+attention.load_state_dict(checkpoint["attention_state_dict"])
 attention.eval()
 
 # === Streamlit UI ===
-st.title("🎬 Movie Review Sentiment Classifier")
-st.write("Using model")
+st.title("🎬 Movie Review Sentiment Classifier (BiLSTM + Bahdanau + BERT)")
+st.markdown("**Architecture**: BERT embeddings → BiLSTM → Bahdanau Attention → FC")
 
-user_input = st.text_area("📝 Your Review", placeholder="Type your movie review here...")
+user_input = st.text_area("📝 Enter movie review text:")
 
 if st.button("Predict"):
     if not user_input.strip():
-        st.warning("Please enter a review.")
+        st.warning("⚠️ Please enter a valid review.")
     else:
-        tokens = tokenizer(user_input)
-        encoded = encode(tokens, vocab)
-        padded = padding(encoded, max_len)
-        input_tensor = torch.tensor([padded], dtype=torch.long).to(device)
-
         with torch.no_grad():
-            embedded = embedding_layer(input_tensor)
-            output_seq, final_hidden = model(embedded)
-            scores, context = attention(output_seq, final_hidden)
-            logits = model.fl(context)
+            # Tokenize and encode
+            inputs = tokenizer(user_input, return_tensors="pt", padding="max_length", truncation=True,
+                               max_length=args["max_len"])
+            input_ids = inputs["input_ids"].to(device)
+            attention_mask = inputs["attention_mask"].to(device)
+
+            # Get BERT embeddings (not pooled output, we want per-token)
+            bert_outputs = bert_model(input_ids, attention_mask=attention_mask)
+            embeddings = bert_outputs.last_hidden_state  # shape: (1, seq_len, 768)
+
+            # BiLSTM forward
+            lstm_out, final_hidden = model(embeddings)  # lstm_out: (1, seq_len, 2*hidden)
+
+            # Attention forward
+            attn_scores, context = attention(lstm_out, final_hidden)  # context: (1, 2*hidden)
+
+            # Classification
+            logits = model.fl(context)  # (1, output_dim)
             probs = F.softmax(logits, dim=1).cpu().numpy()[0]
             pred_label = np.argmax(probs)
             confidence = probs[pred_label]
 
             st.subheader("🧠 Prediction")
             st.write(f"**Sentiment:** {'Positive 👍' if pred_label == 1 else 'Negative 👎'}")
-            st.write(f"**Confidence:** {confidence:.4f}")
+            st.write(f"**Confidence:** `{confidence:.4f}`")
 
-            # === Attention Explanation ===
-            scores = scores.squeeze(0).squeeze(-1).cpu().numpy()
+            # === Attention explanation ===
+            scores = attn_scores.squeeze(0).squeeze(-1).cpu().numpy()
+            tokens = tokenizer.convert_ids_to_tokens(input_ids[0])
             token_weights = list(zip(tokens, scores[:len(tokens)]))
             top_tokens = sorted(token_weights, key=lambda x: x[1], reverse=True)[:10]
 
-            st.subheader("🔍 Top Influential Words")
+            st.subheader("🔍 Top Influential Tokens")
             for word, score in top_tokens:
                 st.markdown(f"- **{word}** — Attention Score: `{score:.4f}`")
