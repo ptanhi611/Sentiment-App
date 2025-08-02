@@ -76,7 +76,11 @@ if st.button("Predict"):
             # === Attention explanation ===
             scores = attn_scores.squeeze(0).squeeze(-1).cpu().numpy()
             tokens = tokenizer.convert_ids_to_tokens(input_ids[0])
-            token_weights = list(zip(tokens, scores[:len(tokens)]))
+            token_weights = [
+                (tok, score) for tok, score in zip(tokens, scores[:len(tokens)])
+                if tok not in ["[PAD]", "[CLS]", "[SEP]"]
+            ]
+
             top_tokens = sorted(token_weights, key=lambda x: x[1], reverse=True)[:10]
 
             st.subheader("🔍 Top Influential Tokens")
