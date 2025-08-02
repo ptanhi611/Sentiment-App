@@ -12,11 +12,11 @@ from attention import Bahdanau_Attention
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # === Hardcoded model config ===
-EMBED_DIM = 768              # BERT base hidden size
-HIDDEN_DIM = 128             # Your BiLSTM hidden dim
-ATTN_HIDDEN_DIM = 64         # Attention internal size
-OUTPUT_DIM = 2               # 2-class classifier
-MAX_LEN = 128                # BERT max token length
+embed_dim = 768              # BERT base hidden size
+hid_DIM = 128             # Your BiLSTM hidden dim
+aTTN_HIDDEN_DIM = 64         # Attention internal size
+oUTPUT_DIM = 2               # 2-class classifier
+mAX_LEN = 128                # BERT max token length
 
 # === Load BERT ===
 bert_model_name = "bert-base-uncased"
@@ -28,11 +28,11 @@ bert_model.eval()
 checkpoint = torch.load("checkpoint.pth", map_location=device)
 
 # === Recreate and load model & attention ===
-model = Bidirectional_lstm(embed_dim=EMBED_DIM, hidden_dim=HIDDEN_DIM, output_dim=OUTPUT_DIM).to(device)
+model = Bidirectional_lstm(embed_dim=embed_dim, hidden_dim=hid_DIM, output_dim=oUTPUT_DIM).to(device)
 model.load_state_dict(checkpoint["model_state_dict"])
 model.eval()
 
-attention = Bahdanau_Attention(hidden_size=2 * HIDDEN_DIM, attention_hidden_size=ATTN_HIDDEN_DIM).to(device)
+attention = Bahdanau_Attention(hidden_size=2 * hid_DIM, attention_hidden_size=aTTN_HIDDEN_DIM).to(device)
 attention.load_state_dict(checkpoint["attention_state_dict"])
 attention.eval()
 
@@ -49,7 +49,7 @@ if st.button("Predict"):
         with torch.no_grad():
             # Tokenize and encode
             inputs = tokenizer(user_input, return_tensors="pt", padding="max_length", truncation=True,
-                               max_length=MAX_LEN)
+                               max_length=mAX_LEN)
             input_ids = inputs["input_ids"].to(device)
             attention_mask = inputs["attention_mask"].to(device)
 
