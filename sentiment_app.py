@@ -28,11 +28,11 @@ bert_model.eval()
 checkpoint = torch.load("checkpoint.pth", map_location=device)
 
 # === Recreate and load model & attention ===
-model = Bidirectional_lstm(embed_dim=embed_dim, hidden_dim=hid_DIM, output_dim=oUTPUT_DIM).to(device)
+model = Bidirectional_lstm(embed_dim=embed_dim, model_size=hid_DIM, output_size=oUTPUT_DIM).to(device)
 model.load_state_dict(checkpoint["model_state_dict"])
 model.eval()
 
-attention = Bahdanau_Attention(hidden_size=2 * hid_DIM, attention_hidden_size=aTTN_HIDDEN_DIM).to(device)
+attention = Bahdanau_Attention(model_size=2 * hid_DIM, atten_size=aTTN_HIDDEN_DIM).to(device)
 attention.load_state_dict(checkpoint["attention_state_dict"])
 attention.eval()
 
